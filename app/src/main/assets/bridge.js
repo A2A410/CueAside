@@ -7,12 +7,14 @@ const CueBridge = window.CueBridge || {
     getSettings: () => "{}",
     saveSettings: (s) => console.log("Mock Save Settings", s),
     requestUsageAccess: () => console.log("Mock Usage Access"),
+    requestAccessibilitySettings: () => console.log("Mock Acc Access"),
     requestNotificationPermission: () => console.log("Mock Notif Access"),
     requestBatteryIgnore: () => console.log("Mock Battery Ignore"),
     requestBootStart: () => console.log("Mock Boot Start"),
     rescanApps: () => console.log("Mock Rescan"),
     deleteRoutine: (id) => console.log("Mock Delete", id),
     toggleRoutine: (id, enabled) => console.log("Mock Toggle", id, enabled),
+    checkPermissionsStatus: () => '{"usage":true,"accessibility":true,"notifications":true}',
     log: (m) => console.log(m)
 };
 
@@ -78,6 +80,41 @@ window.onAppsUpdated = function (json) {
     APPS = JSON.parse(json);
     if (curTab === 'create' && CR.step === 0) renderCreate();
 };
+
+window.checkPermissions = function() {
+    try {
+        const status = JSON.parse(CueBridge.checkPermissionsStatus());
+        if (!status.usage || !status.accessibility) {
+            showPermissionWarning(status);
+        }
+    } catch(e) { dlog("Error checking permissions: " + e); }
+};
+
+function showPermissionWarning(status) {
+    const html = `
+    <div style="padding:20px; text-align:center">
+        <div style="font-size:40px; margin-bottom:15px">⚠️</div>
+        <h3 style="margin-bottom:10px">Permissions Required</h3>
+        <p style="font-size:13px; color:var(--txt2); line-height:1.5; margin-bottom:20px">
+            CueAside needs certain permissions to watch for app changes and fire notifications.
+            Without them, the app will not function correctly.
+        </p>
+        <div class="sec">
+            ${!status.usage ? `
+            <div class="row" onclick="CueBridge.requestUsageAccess()">
+                <div class="row-label">Usage Access</div>
+                <span class="badge badge-req">Grant</span>
+            </div>` : ''}
+            ${!status.accessibility ? `
+            <div class="row" onclick="CueBridge.requestAccessibilitySettings()">
+                <div class="row-label">Accessibility Service</div>
+                <span class="badge badge-req">Enable</span>
+            </div>` : ''}
+        </div>
+        <button class="btn btn-primary" style="margin-top:20px" onclick="closeSheet()">I'll do it later</button>
+    </div>`;
+    openSheet('Warning', html);
+}
 
 // ── THEME & DESIGN ──
 function applyTheme(id) {
@@ -380,4 +417,5 @@ function renderSettings() {
     applyTheme(ST.settings.theme || 'default');
     applyDesign(ST.settings.design || '2');
     renderCreate();
+    setTimeout(window.checkPermissions, 1000);
 })();

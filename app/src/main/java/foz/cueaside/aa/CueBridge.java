@@ -1,9 +1,11 @@
 package foz.cueaside.aa;
 
+import android.app.AppOpsManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.os.Process;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.drawable.BitmapDrawable;
@@ -67,26 +69,93 @@ public class CueBridge {
 
     @JavascriptInterface
     public String getApps() {
-        PackageManager pm = context.getPackageManager();
-        List<ApplicationInfo> apps = pm.getInstalledApplications(PackageManager.GET_META_DATA);
         List<Routine.AppInfo> appInfos = new ArrayList<>();
+        try {
+            PackageManager pm = context.getPackageManager();
+            List<ApplicationInfo> apps = pm.getInstalledApplications(PackageManager.GET_META_DATA);
 
-        for (ApplicationInfo app : apps) {
-            if ((app.flags & ApplicationInfo.FLAG_SYSTEM) != 0 && (app.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0) {
-                continue;
+            for (ApplicationInfo app : apps) {
+                try {
+                    // Filter system apps but keep system apps that have been updated
+                    if ((app.flags & ApplicationInfo.FLAG_SYSTEM) != 0 && (app.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0) {
+                        continue;
+                    }
+                    Routine.AppInfo info = new Routine.AppInfo();
+                    info.name = pm.getApplicationLabel(app).toString();
+                    info.pkg = app.packageName;
+                    info.icon = getBase64Icon(pm.getApplicationIcon(app));
+                    appInfos.add(info);
+                } catch (Exception e) {
+                    log("Error processing app " + app.packageName + ": " + e.getMessage());
+                }
             }
-            Routine.AppInfo info = new Routine.AppInfo();
-            info.name = pm.getApplicationLabel(app).toString();
-            info.pkg = app.packageName;
-            info.icon = getBase64Icon(pm.getApplicationIcon(app));
-            appInfos.add(info);
+        } catch (Exception e) {
+            log("Error getting apps: " + e.getMessage());
         }
         return gson.toJson(appInfos);
     }
 
     @JavascriptInterface
+    public String checkPermissionsStatus() {
+        java.util.Map<String, Boolean> status = new java.util.HashMap<>();
+        status.put("usage", isUsageStatsEnabled());
+        status.put("accessibility", isAccessibilityEnabled());
+        status.put("notifications", isNotificationPermissionGranted());
+        return gson.toJson(status);
+    }
+
+    private boolean isUsageStatsEnabled() {
+        try {
+            AppOpsManager appOps = (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
+            int mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), context.getPackageName());
+            return mode == AppOpsManager.MODE_ALLOWED;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean isAccessibilityEnabled() {
+        try {
+            int accessibilityEnabled = Settings.Secure.getInt(context.getContentResolver(), Settings.Secure.ACCESSIBILITY_ENABLED);
+            if (accessibilityEnabled == 1) {
+                String settingValue = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+                if (settingValue != null) {
+                    String[] services = settingValue.split(":");
+                    String myService = context.getPackageName() + "/" + AppTrackerService.class.getName();
+                    for (String service : services) {
+                        if (service.equalsIgnoreCase(myService)) return true;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log("Error checking accessibility: " + e.getMessage());
+        }
+        return false;
+    }
+
+    private boolean isNotificationPermissionGranted() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            return context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+        }
+        return true;
+    }
+
+    @JavascriptInterface
     public void requestUsageAccess() {
-        context.startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        try {
+            context.startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Exception e) {
+            log("Error requesting usage access: " + e.getMessage());
+        }
+    }
+
+    @JavascriptInterface
+    public void requestAccessibilitySettings() {
+        try {
+            context.startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Exception e) {
+            log("Error requesting accessibility settings: " + e.getMessage());
+        }
     }
 
     @JavascriptInterface

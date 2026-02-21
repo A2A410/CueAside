@@ -21,19 +21,25 @@ public class AppTrackerService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            String packageName = event.getPackageName() != null ? event.getPackageName().toString() : "";
-            if (!packageName.equals(lastPackageName)) {
-                handleAppChange(lastPackageName, packageName);
-                lastPackageName = packageName;
+        try {
+            if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                String packageName = event.getPackageName() != null ? event.getPackageName().toString() : "";
+                if (!packageName.equals(lastPackageName)) {
+                    handleAppChange(lastPackageName, packageName);
+                    lastPackageName = packageName;
+                }
             }
+        } catch (Exception e) {
+            Log.e(TAG, "Error in onAccessibilityEvent: " + e.getMessage());
         }
     }
 
     private void handleAppChange(String oldPkg, String newPkg) {
-        usageHandler.removeCallbacksAndMessages(null);
-        List<Routine> routines = routineManager.getRoutines();
-        for (Routine r : routines) {
+        try {
+            usageHandler.removeCallbacksAndMessages(null);
+            List<Routine> routines = routineManager.getRoutines();
+            if (routines == null) return;
+            for (Routine r : routines) {
             if (!r.enabled) continue;
 
             // Check if routine targets the new app (Launch)
@@ -69,18 +75,24 @@ public class AppTrackerService extends AccessibilityService {
     }
 
     private void scheduleUsageCheck(Routine r) {
-        long delayMillis = r.dur * 60 * 1000; // default min
-        if ("h".equals(r.unit)) delayMillis *= 60;
-        if ("s".equals(r.unit)) delayMillis = r.dur * 1000;
+        try {
+            long delayMillis = r.dur * 60 * 1000; // default min
+            if ("h".equals(r.unit)) delayMillis *= 60;
+            if ("s".equals(r.unit)) delayMillis = r.dur * 1000;
 
-        if ("session".equals(r.timeMode)) {
-            usageHandler.postDelayed(() -> {
-                NotificationHelper.showNotification(this, r.title, r.msg);
-            }, delayMillis);
-        } else {
-            // Total daily usage would require periodic checking against UsageStatsManager
-            // For brevity, we'll implement a simple session-based delay here
-            // In a full production app, you'd query UsageStatsManager periodically
+            if ("session".equals(r.timeMode)) {
+                usageHandler.postDelayed(() -> {
+                    try {
+                        NotificationHelper.showNotification(this, r.title, r.msg);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error showing scheduled notification: " + e.getMessage());
+                    }
+                }, delayMillis);
+            } else {
+                // Total daily usage implementation would go here
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error scheduling usage check: " + e.getMessage());
         }
     }
 

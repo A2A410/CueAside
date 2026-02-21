@@ -42,6 +42,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        if (webView != null) {
+            webView.evaluateJavascript("if(window.checkPermissions) window.checkPermissions();", null);
+        }
+    }
+
+    @Override
     public void onBackPressed() {
         if (webView.canGoBack()) {
             webView.goBack();
