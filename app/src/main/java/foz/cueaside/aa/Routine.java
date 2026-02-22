@@ -4,6 +4,8 @@ import java.util.List;
 
 public class Routine {
     public String id;
+    public int seqId;
+    public String cueName;
     public List<AppInfo> apps;
     public String cond; // "launched", "used", "exiting"
     public int dur;

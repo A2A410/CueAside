@@ -3,7 +3,10 @@
 const CueBridge = window.CueBridge || {
     saveRoutine: (r) => console.log("Mock Save", r),
     getRoutines: () => "[]",
-    getApps: () => "[]",
+    getApps: () => JSON.stringify([
+        {name:'Camera',pkg:'com.android.camera',icon:'📷'},
+        {name:'Messages',pkg:'com.android.messages',icon:'💬'}
+    ]),
     getSettings: () => "{}",
     saveSettings: (s) => console.log("Mock Save Settings", s),
     requestUsageAccess: () => console.log("Mock Usage Access"),
@@ -20,8 +23,8 @@ const CueBridge = window.CueBridge || {
 
 const V = '1.6.0', MAX_MSG = 100;
 const BUILD_DATE = '2026-02-22';
-let ST = { routines: [], iconLib: [], settings: { defaultBubble: false, highPriority: true, design: '2', theme: 'default' } };
-let CR = { step: 0, selected: [], multi: false, cond: 'launched', dur: 20, unit: 'm', timeMode: 'session', icon: null, titleOn: false, title: '', msg: '', bubble: false, timeout: 0 };
+let ST = { routines: [], iconLib: [], settings: { defaultBubble: false, highPriority: true, design: '2', theme: 'default', lastSeqId: 0 } };
+let CR = { step: 0, selected: [], multi: false, cond: 'launched', dur: 20, unit: 'm', timeMode: 'session', icon: null, titleOn: false, title: '', msg: '', bubble: false, timeout: 0, cueName: '' };
 let APPS = [];
 
 const PRESETS = [
@@ -325,6 +328,10 @@ function renderFnCfg() {
     </div>
   </div>
   <div style="padding:12px 20px">
+    <div style="font-size:10px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--txt3);margin-bottom:6px">Cue Name (optional)</div>
+    <input class="form-input" id="cue-name" placeholder="Letters/Numbers only, min 3 chars" maxlength="20" value="${CR.cueName}" oninput="CR.cueName=this.value">
+
+    <div style="font-size:10px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--txt3);margin-top:12px;margin-bottom:6px">Notification Content</div>
     <input class="form-input" id="notif-t" placeholder="Title (optional)" maxlength="50" value="${CR.title}" oninput="CR.title=this.value">
     <textarea class="form-input" id="notif-m" rows="3" placeholder="Message" maxlength="${MAX_MSG}" style="margin-top:10px" oninput="CR.msg=this.value">${CR.msg}</textarea>
   </div>
@@ -343,8 +350,25 @@ function pickIcon(type, val) {
 function saveRoutine() {
     const msg = CR.msg.trim();
     if (!msg) { snack('Message is required'); return; }
+
+    ST.settings.lastSeqId = (ST.settings.lastSeqId || 0) + 1;
+    const seqId = ST.settings.lastSeqId;
+
+    let cueName = CR.cueName.trim();
+    if (cueName) {
+        if (!/^[a-zA-Z0-9]{3,}$/.test(cueName)) {
+            ST.settings.lastSeqId--; // Rollback
+            snack('Name must be alphanumeric and at least 3 chars');
+            return;
+        }
+    } else {
+        cueName = seqId.toString();
+    }
+
     const r = {
         id: Date.now().toString(),
+        seqId: seqId,
+        cueName: cueName,
         apps: CR.selected.map(a => ({ name: a.name, pkg: a.pkg, icon: a.icon })),
         cond: CR.cond, dur: CR.dur, unit: CR.unit, timeMode: CR.timeMode,
         icon: CR.icon, title: CR.title, msg,
@@ -353,12 +377,13 @@ function saveRoutine() {
         timeout: CR.timeout
     };
     CueBridge.saveRoutine(JSON.stringify(r));
+    save(); // Save lastSeqId
     snack('Routine saved!');
     resetCreate(); switchTab('list');
 }
 
 function resetCreate() {
-    CR = { step: 0, selected: [], multi: false, cond: 'launched', dur: 20, unit: 'm', timeMode: 'session', icon: null, titleOn: false, title: '', msg: '', bubble: false, timeout: 0, highPriority: ST.settings.highPriority };
+    CR = { step: 0, selected: [], multi: false, cond: 'launched', dur: 20, unit: 'm', timeMode: 'session', icon: null, titleOn: false, title: '', msg: '', bubble: false, timeout: 0, highPriority: ST.settings.highPriority, cueName: '' };
     renderCreate(); hideFab();
 }
 
@@ -384,7 +409,7 @@ function routineCard(r) {
     return `<div class="rcard" onclick="openDetail('${r.id}')">
     <div class="rcard-icon">${rIcon(r)}</div>
     <div style="flex:1">
-      <div class="rcard-name">${r.title || r.apps[0].name}</div>
+      <div class="rcard-name">[${r.cueName}] ${r.title || r.apps[0].name}</div>
       <div class="rcard-sub">${lbl}</div>
     </div>
     <label class="toggle" onclick="event.stopPropagation()">
@@ -397,7 +422,7 @@ function routineCard(r) {
 function openDetail(id) {
     const r = ST.routines.find(x => x.id === id); if (!r) return;
     const html = `<div style="padding:20px">
-        <h3 style="margin-bottom:10px">${r.title || 'Routine'}</h3>
+        <h3 style="margin-bottom:10px">${r.cueName}: ${r.title || 'Routine'}</h3>
         <p style="color:var(--txt2); font-size:13px; line-height:1.5; margin-bottom:20px">${r.msg}</p>
         <div class="sec">
             <div class="row"><div class="row-label">Condition</div><div class="row-right">${r.cond}</div></div>
@@ -490,7 +515,7 @@ function exportData() {
 function clearAllData() {
     if (confirm('Delete ALL routines and settings? This cannot be undone.')) {
         ST.routines = [];
-        ST.settings = { defaultBubble: false, highPriority: true, design: '2', theme: 'default' };
+        ST.settings = { defaultBubble: false, highPriority: true, design: '2', theme: 'default', lastSeqId: 0 };
         CueBridge.clearAllData();
         snack('All data cleared');
         location.reload();
