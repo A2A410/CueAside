@@ -58,6 +58,13 @@ public class CueBridge {
     }
 
     @JavascriptInterface
+    public void clearAllData() {
+        routineManager.saveRoutines(new ArrayList<>());
+        routineManager.saveSettings("{}");
+        refreshRoutines();
+    }
+
+    @JavascriptInterface
     public String getSettings() {
         return routineManager.getSettings();
     }

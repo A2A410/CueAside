@@ -296,4 +296,3 @@ select.form-input{-webkit-appearance:none;appearance:none}
 .chk-row:last-child{border-bottom:none}
 .chk-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--acc);cursor:pointer;flex-shrink:0}
 .chk-row input[type=radio]{width:16px;height:16px;accent-color:var(--acc);cursor:pointer;flex-shrink:0}
-</head>
