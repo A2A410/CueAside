@@ -40,37 +40,40 @@ public class AppTrackerService extends AccessibilityService {
             List<Routine> routines = routineManager.getRoutines();
             if (routines == null) return;
             for (Routine r : routines) {
-            if (!r.enabled) continue;
+                if (!r.enabled) continue;
 
-            // Check if routine targets the new app (Launch)
-            if ("launched".equals(r.cond)) {
-                for (Routine.AppInfo app : r.apps) {
-                    if (app.pkg.equals(newPkg)) {
-                        NotificationHelper.showNotification(this, r.title, r.msg);
-                        break;
+                // Check if routine targets the new app (Launch)
+                if ("launched".equals(r.cond)) {
+                    for (Routine.AppInfo app : r.apps) {
+                        if (app.pkg.equals(newPkg)) {
+                            NotificationHelper.showNotification(this, r.title, r.msg);
+                            break;
+                        }
+                    }
+                }
+
+                // Check if routine targets the old app (Exit)
+                if ("exiting".equals(r.cond)) {
+                    for (Routine.AppInfo app : r.apps) {
+                        if (app.pkg.equals(oldPkg)) {
+                            NotificationHelper.showNotification(this, r.title, r.msg);
+                            break;
+                        }
+                    }
+                }
+
+                // Check for time-based (used)
+                if ("used".equals(r.cond)) {
+                    for (Routine.AppInfo app : r.apps) {
+                        if (app.pkg.equals(newPkg)) {
+                            scheduleUsageCheck(r);
+                            break;
+                        }
                     }
                 }
             }
-
-            // Check if routine targets the old app (Exit)
-            if ("exiting".equals(r.cond)) {
-                for (Routine.AppInfo app : r.apps) {
-                    if (app.pkg.equals(oldPkg)) {
-                        NotificationHelper.showNotification(this, r.title, r.msg);
-                        break;
-                    }
-                }
-            }
-
-            // Check for time-based (used)
-            if ("used".equals(r.cond)) {
-                for (Routine.AppInfo app : r.apps) {
-                    if (app.pkg.equals(newPkg)) {
-                        scheduleUsageCheck(r);
-                        break;
-                    }
-                }
-            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error in handleAppChange: " + e.getMessage());
         }
     }
 
