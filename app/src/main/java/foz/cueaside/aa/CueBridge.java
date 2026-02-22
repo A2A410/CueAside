@@ -40,9 +40,17 @@ public class CueBridge {
 
     @JavascriptInterface
     public void saveRoutine(String json) {
-        Routine r = gson.fromJson(json, Routine.class);
-        routineManager.addRoutine(r);
-        refreshRoutines();
+        if (json == null) return;
+        try {
+            // Validate input and handle potential parsing errors to prevent crashes (Sentinel Mode)
+            Routine r = gson.fromJson(json, Routine.class);
+            if (r != null) {
+                routineManager.addRoutine(r);
+                refreshRoutines();
+            }
+        } catch (Exception e) {
+            log("Error saving routine: " + e.getMessage());
+        }
     }
 
     @JavascriptInterface
@@ -64,7 +72,13 @@ public class CueBridge {
 
     @JavascriptInterface
     public void saveSettings(String json) {
-        routineManager.saveSettings(json);
+        if (json == null) return;
+        try {
+            // Ensure settings update fails safely if input is malformed (Sentinel Mode)
+            routineManager.saveSettings(json);
+        } catch (Exception e) {
+            log("Error saving settings: " + e.getMessage());
+        }
     }
 
     @JavascriptInterface
@@ -188,11 +202,18 @@ public class CueBridge {
     }
 
     private void refreshRoutines() {
-        webView.post(() -> webView.evaluateJavascript("window.onRoutinesUpdated('" + getRoutines() + "')", null));
+        String json = getRoutines();
+        // Use gson.toJson to safely escape the JSON string for use as a JS literal,
+        // preventing JS injection/XSS (Sentinel Mode)
+        String escaped = gson.toJson(json);
+        webView.post(() -> webView.evaluateJavascript("window.onRoutinesUpdated(" + escaped + ")", null));
     }
 
     private void refreshApps() {
-        webView.post(() -> webView.evaluateJavascript("window.onAppsUpdated('" + getApps() + "')", null));
+        String json = getApps();
+        // Securely pass app data to the WebView by escaping it properly (Sentinel Mode)
+        String escaped = gson.toJson(json);
+        webView.post(() -> webView.evaluateJavascript("window.onAppsUpdated(" + escaped + ")", null));
     }
 
     private String getBase64Icon(Drawable drawable) {
