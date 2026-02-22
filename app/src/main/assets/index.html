@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+    <title>CueAside</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+    <div class="screen active" id="scr-create">
+        <div class="topbar">
+            <h1 style="display:none"><span style="color:var(--acc)">+</span> Create</h1>
+            <span class="topbar-label">New Routine</span>
+            <button class="topbar-btn" onclick="openDebug()" title="Debug">·</button>
+        </div>
+        <div id="create-content"></div>
+    </div>
+    <div class="screen" id="scr-list">
+        <div class="topbar">
+            <h1 style="display:none">My <span style="color:var(--acc)">Routines</span></h1>
+            <span class="topbar-label">Routines</span>
+        </div>
+        <div id="list-content"></div>
+    </div>
+    <div class="screen" id="scr-settings">
+        <div class="topbar">
+            <h1 style="display:none"><span style="color:var(--acc)">CueAside</span></h1>
+            <span class="topbar-label">CueAside</span>
+        </div>
+        <div id="settings-content"></div>
+    </div>
+</div>
+
+<nav id="nav">
+    <button class="nav-item active" data-tab="create" onclick="switchTab('create')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        <span>Create</span>
+    </button>
+    <button class="nav-item" data-tab="list" onclick="switchTab('list')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><line x1="4" y1="6" x2="4" y2="6"/><line x1="4" y1="12" x2="4" y2="12"/><line x1="4" y1="18" x2="4" y2="18"/></svg>
+        <span>List</span>
+    </button>
+    <button class="nav-item" data-tab="settings" onclick="switchTab('settings')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Settings</span>
+    </button>
+</nav>
+
+<button class="fab hidden" id="fab" onclick="onFab()">Next →</button>
+
+<div class="sheet-overlay" id="sheet-overlay" onclick="closeSheetOutside(event)">
+    <div class="sheet" id="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+            <h2 id="sheet-title"></h2>
+            <button class="sheet-close" onclick="closeSheet()">✕</button>
+        </div>
+        <div class="sheet-body" id="sheet-body"></div>
+    </div>
+</div>
+
+<div id="snack"></div>
+
+<div id="design-plaster">
+    <div class="plaster-ring"></div>
+    <div class="plaster-txt">Applying design…</div>
+</div>
+
+<div id="debug-panel">
+    <div style="display:flex;align-items:center;padding:12px 16px;border-bottom:var(--line);flex-shrink:0;gap:8px">
+        <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:500;color:var(--txt2);flex:1">debug console</span>
+        <button onclick="clearDebug()" style="background:none;border:var(--line);color:var(--txt3);padding:4px 10px;border-radius:var(--rad3);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif">clear</button>
+        <button onclick="closeDebug()" style="background:var(--bg3);border:var(--line);color:var(--txt2);width:26px;height:26px;border-radius:var(--rad3);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">✕</button>
+    </div>
+    <div id="debug-log"></div>
+</div>
+
+<script src="bridge.js"></script>
+</body>
+</html>

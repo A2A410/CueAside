@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">CueAside</string>
+    <string name="accessibility_description">CueAside uses this service to detect when apps are launched or exited to trigger your routines.</string>
+</resources>
