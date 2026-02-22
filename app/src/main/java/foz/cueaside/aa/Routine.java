@@ -14,6 +14,8 @@ public class Routine {
     public String msg;
     public boolean bubble;
     public boolean enabled;
+    public boolean highPriority;
+    public int timeout; // seconds
 
     public static class AppInfo {
         public String name;

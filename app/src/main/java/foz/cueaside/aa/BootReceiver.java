@@ -9,7 +9,8 @@ public class BootReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
-            Log.d("BootReceiver", "Boot completed, service will start when needed by Accessibility");
+            Log.d("BootReceiver", "Boot completed. CueAside is ready.");
+            // Accessibility services are started by the system if they were enabled.
         }
     }
 }

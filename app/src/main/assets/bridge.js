@@ -14,14 +14,14 @@ const CueBridge = window.CueBridge || {
     rescanApps: () => console.log("Mock Rescan"),
     deleteRoutine: (id) => console.log("Mock Delete", id),
     toggleRoutine: (id, enabled) => console.log("Mock Toggle", id, enabled),
-    checkPermissionsStatus: () => '{"usage":true,"accessibility":true,"notifications":true}',
+    checkPermissionsStatus: () => '{"usage":false,"accessibility":false,"notifications":false}',
     log: (m) => console.log(m)
 };
 
-const V = '1.5.0', MAX_MSG = 100;
-const BUILD_DATE = '2026-02-21';
-let ST = { routines: [], iconLib: [], settings: { defaultBubble: false, theme: 'default', design: '2' } };
-let CR = { step: 0, selected: [], multi: false, cond: 'launched', dur: 20, unit: 'm', timeMode: 'session', icon: null, titleOn: false, title: '', msg: '', bubble: false };
+const V = '1.6.0', MAX_MSG = 100;
+const BUILD_DATE = '2026-02-22';
+let ST = { routines: [], iconLib: [], settings: { defaultBubble: false, highPriority: true, design: '2', theme: 'default' } };
+let CR = { step: 0, selected: [], multi: false, cond: 'launched', dur: 20, unit: 'm', timeMode: 'session', icon: null, titleOn: false, title: '', msg: '', bubble: false, timeout: 0 };
 let APPS = [];
 
 const PRESETS = [
@@ -302,6 +302,21 @@ function renderFnCfg() {
     </div>
   </div>
   <label class="chk-row"><input type="radio" name="cond" value="exiting" ${CR.cond === 'exiting' ? 'checked' : ''} onchange="setCond('exiting')"><span class="row-label">When Exiting</span></label>
+
+  <div style="padding:10px 20px 4px;font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--txt3)">Notification Options</div>
+  <label class="chk-row">
+    <input type="checkbox" ${CR.highPriority ? 'checked' : ''} onchange="CR.highPriority=this.checked">
+    <div style="flex:1">
+        <div class="row-label">High Priority</div>
+        <div style="font-size:11px;color:var(--txt3)">Bypass DND and show at top</div>
+    </div>
+  </label>
+  <div style="padding:0 20px 12px;display:flex;align-items:center;gap:8px">
+    <span style="font-size:12px;color:var(--txt2)">Withdraw after</span>
+    <input type="number" min="0" value="${CR.timeout || 0}" class="form-input" style="width:60px;padding:6px" oninput="CR.timeout=+this.value">
+    <span style="font-size:12px;color:var(--txt2)">sec (0 = never)</span>
+  </div>
+
   <div style="padding:10px 20px 4px;font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--txt3)">Notification Icon</div>
   <div style="padding:8px 20px">
     <div class="icon-grid">${appIcons}</div>
@@ -333,7 +348,9 @@ function saveRoutine() {
         apps: CR.selected.map(a => ({ name: a.name, pkg: a.pkg, icon: a.icon })),
         cond: CR.cond, dur: CR.dur, unit: CR.unit, timeMode: CR.timeMode,
         icon: CR.icon, title: CR.title, msg,
-        bubble: CR.bubble, enabled: true
+        bubble: CR.bubble, enabled: true,
+        highPriority: CR.highPriority,
+        timeout: CR.timeout
     };
     CueBridge.saveRoutine(JSON.stringify(r));
     snack('Routine saved!');
@@ -341,7 +358,7 @@ function saveRoutine() {
 }
 
 function resetCreate() {
-    CR = { step: 0, selected: [], multi: false, cond: 'launched', dur: 20, unit: 'm', timeMode: 'session', icon: null, titleOn: false, title: '', msg: '', bubble: false };
+    CR = { step: 0, selected: [], multi: false, cond: 'launched', dur: 20, unit: 'm', timeMode: 'session', icon: null, titleOn: false, title: '', msg: '', bubble: false, timeout: 0, highPriority: ST.settings.highPriority };
     renderCreate(); hideFab();
 }
 
@@ -380,9 +397,14 @@ function routineCard(r) {
 function openDetail(id) {
     const r = ST.routines.find(x => x.id === id); if (!r) return;
     const html = `<div style="padding:20px">
-        <h3>${r.title || 'Routine'}</h3>
-        <p>${r.msg}</p>
-        <button class="btn btn-danger" onclick="deleteR('${r.id}')">Delete</button>
+        <h3 style="margin-bottom:10px">${r.title || 'Routine'}</h3>
+        <p style="color:var(--txt2); font-size:13px; line-height:1.5; margin-bottom:20px">${r.msg}</p>
+        <div class="sec">
+            <div class="row"><div class="row-label">Condition</div><div class="row-right">${r.cond}</div></div>
+            ${r.timeout > 0 ? `<div class="row"><div class="row-label">Timeout</div><div class="row-right">${r.timeout}s</div></div>` : ''}
+            <div class="row"><div class="row-label">High Priority</div><div class="row-right">${r.highPriority ? 'Yes' : 'No'}</div></div>
+        </div>
+        <button class="btn btn-danger" style="margin-top:20px" onclick="deleteR('${r.id}')">Delete Routine</button>
     </div>`;
     openSheet('Detail', html);
 }
@@ -395,20 +417,104 @@ function deleteR(id) {
 // ── SETTINGS ──
 function renderSettings() {
     const el = document.getElementById('settings-content');
+    const cur_d = ST.settings.design || '2';
     el.innerHTML = `
+    <div class="sec-title">Appearance</div>
     <div class="sec">
-        <div class="row" onclick="switchDesign('1')"><div class="row-label">Bold Design</div></div>
-        <div class="row" onclick="switchDesign('2')"><div class="row-label">Minimal Design</div></div>
+        <div style="padding:14px 20px; display:flex; gap:10px; overflow-x:auto">
+            ${THEMES.map(t => `<div class="theme-swatch ${ST.settings.theme === t.id ? 'active' : ''}" style="background:linear-gradient(135deg,${t.b},${t.a}); flex-shrink:0" onclick="setTheme('${t.id}')"></div>`).join('')}
+        </div>
+        <div class="row" onclick="switchDesign('1')">
+            <div class="row-label">Bold Design</div>
+            ${cur_d === '1' ? '<span class="badge badge-ok">Active</span>' : ''}
+        </div>
+        <div class="row" onclick="switchDesign('2')">
+            <div class="row-label">Minimal Design</div>
+            ${cur_d === '2' ? '<span class="badge badge-ok">Active</span>' : ''}
+        </div>
     </div>
+
+    <div class="sec-title">Default Settings</div>
     <div class="sec">
-        <div class="row" onclick="CueBridge.requestUsageAccess()"><div class="row-label">Usage Access</div></div>
-        <div class="row" onclick="CueBridge.requestNotificationPermission()"><div class="row-label">Notifications</div></div>
-        <div class="row" onclick="CueBridge.requestBootStart()"><div class="row-label">Start on Boot</div></div>
-        <div class="row" onclick="CueBridge.requestBatteryIgnore()"><div class="row-label">Unrestrict Battery</div></div>
+        <div class="row">
+            <div class="row-label">Global High Priority</div>
+            <label class="toggle"><input type="checkbox" ${ST.settings.highPriority ? 'checked' : ''} onchange="ST.settings.highPriority=this.checked;save()"><div class="toggle-track"></div></label>
+        </div>
+        <div class="row">
+            <div class="row-label">Default Bubble</div>
+            <label class="toggle"><input type="checkbox" ${ST.settings.defaultBubble ? 'checked' : ''} onchange="ST.settings.defaultBubble=this.checked;save()"><div class="toggle-track"></div></label>
+        </div>
     </div>
+
+    <div class="sec-title">Permissions & System</div>
     <div class="sec">
-        <div class="row" onclick="CueBridge.rescanApps()"><div class="row-label">Rescan Apps</div></div>
+        <div class="row" onclick="CueBridge.requestUsageAccess()"><div class="row-label">Usage Access</div><span class="badge badge-req">Grant</span></div>
+        <div class="row" onclick="CueBridge.requestAccessibilitySettings()"><div class="row-label">Accessibility Service</div><span class="badge badge-req">Enable</span></div>
+        <div class="row" onclick="CueBridge.requestNotificationPermission()"><div class="row-label">Notifications</div><span class="badge badge-opt">Config</span></div>
+        <div class="row" onclick="CueBridge.requestBatteryIgnore()"><div class="row-label">Unrestrict Battery</div><span class="badge badge-opt">Optimize</span></div>
+    </div>
+
+    <div class="sec-title">App Data</div>
+    <div class="sec">
+        <div class="row" onclick="CueBridge.rescanApps()"><div class="row-label">Rescan Installed Apps</div><span style="font-size:16px">↻</span></div>
+        <div class="row" onclick="exportData()"><div class="row-label">Export Routines (JSON)</div><span style="font-size:16px">↗</span></div>
+        <div class="row" onclick="openAbout()"><div class="row-label">About CueAside</div><span style="font-size:16px">›</span></div>
+    </div>
+
+    <div class="sec-title">Danger Zone</div>
+    <div class="sec">
+        <div class="row" onclick="clearAllData()"><div class="row-label" style="color:var(--danger)">Clear All Data</div></div>
+    </div>
+
+    <div class="sec">
+        <div class="row" onclick="openDebug()"><div class="row-label">Debug Console</div><span style="font-size:11px; color:var(--txt3)">v${V}</span></div>
+    </div>
+    <div style="height:30px"></div>`;
+}
+
+function exportData() {
+    const data = {
+        v: V,
+        exported: new Date().toISOString(),
+        routines: ST.routines,
+        settings: ST.settings
+    };
+    const j = JSON.stringify(data, null, 2);
+    const a = document.createElement('a');
+    a.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(j);
+    a.download = 'cue-aside-export.json';
+    a.click();
+    snack('Exported routines');
+}
+
+function clearAllData() {
+    if (confirm('Delete ALL routines and settings? This cannot be undone.')) {
+        ST.routines = [];
+        ST.settings = { defaultBubble: false, highPriority: true, design: '2', theme: 'default' };
+        CueBridge.clearAllData();
+        snack('All data cleared');
+        location.reload();
+    }
+}
+
+function openAbout() {
+    const html = `
+    <div style="padding:28px 20px 20px;border-bottom:var(--line);display:flex;align-items:center;gap:16px">
+      <div style="width:56px;height:56px;border-radius:16px;background:var(--bg3);border:var(--line);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0">◎</div>
+      <div>
+        <div style="font-size:18px;font-weight:600;letter-spacing:-.02em">CueAside</div>
+        <div style="font-size:12px;color:var(--txt3);margin-top:3px;font-family:'DM Mono',monospace">v${V}</div>
+      </div>
+    </div>
+    <div class="row" style="cursor:default">
+      <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--txt3);width:64px;flex-shrink:0">Build</div>
+      <div style="font-size:13px">${BUILD_DATE}</div>
+    </div>
+    <div class="row" style="cursor:default;align-items:flex-start">
+      <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--txt3);width:64px;flex-shrink:0;padding-top:2px">Info</div>
+      <div style="font-size:13px;line-height:1.65;color:var(--txt2)">App-triggered notification routines. Monitors app usage via Accessibility & Usage Stats to fire custom alerts.</div>
     </div>`;
+    openSheet('About', html);
 }
 
 // ── INIT ──
