@@ -24,9 +24,14 @@ public class NotificationHelper {
             String channelId = highPriority ? CHANNEL_ID_HIGH : CHANNEL_ID_DEFAULT;
             createNotificationChannel(context, channelId, highPriority);
 
+            String displayTitle = (title != null && !title.isEmpty()) ? title : "CueAside";
+            if (routine.cueName != null && !routine.cueName.isEmpty()) {
+                displayTitle = "[" + routine.cueName + "] " + displayTitle;
+            }
+
             NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)
                     .setSmallIcon(android.R.drawable.ic_dialog_info)
-                    .setContentTitle(title != null && !title.isEmpty() ? title : "CueAside")
+                    .setContentTitle(displayTitle)
                     .setContentText(message)
                     .setPriority(highPriority ? NotificationCompat.PRIORITY_HIGH : NotificationCompat.PRIORITY_DEFAULT)
                     .setAutoCancel(true);
