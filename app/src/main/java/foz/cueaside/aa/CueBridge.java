@@ -104,10 +104,13 @@ public class CueBridge {
 
     @JavascriptInterface
     public String checkPermissionsStatus() {
-        java.util.Map<String, Boolean> status = new java.util.HashMap<>();
+        java.util.Map<String, Object> status = new java.util.HashMap<>();
         status.put("usage", isUsageStatsEnabled());
-        status.put("accessibility", isAccessibilityEnabled());
+        boolean accEnabled = isAccessibilityEnabled();
+        status.put("accessibility", accEnabled);
         status.put("notifications", isNotificationPermissionGranted());
+        status.put("lastAccEvent", AppTrackerService.getLastEventTime());
+        status.put("hasActiveRoutines", routineManager.getRoutines().stream().anyMatch(r -> r.enabled));
         return gson.toJson(status);
     }
 
@@ -207,12 +210,31 @@ public class CueBridge {
         android.util.Log.d("CueAsideBridge", message);
     }
 
-    private void refreshRoutines() {
-        webView.post(() -> webView.evaluateJavascript("window.onRoutinesUpdated('" + getRoutines() + "')", null));
+    @JavascriptInterface
+    public void openAppInfo() {
+        try {
+            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            intent.setData(Uri.parse("package:" + context.getPackageName()));
+            context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Exception e) {
+            log("Error opening app info: " + e.getMessage());
+        }
     }
 
-    private void refreshApps() {
-        webView.post(() -> webView.evaluateJavascript("window.onAppsUpdated('" + getApps() + "')", null));
+    private void refreshRoutines() {
+        webView.post(() -> {
+            String json = getRoutines();
+            webView.evaluateJavascript("window.onRoutinesUpdated('" + json.replace("'", "\\'") + "')", null);
+        });
+    }
+
+    public void refreshApps() {
+        new Thread(() -> {
+            String json = getApps();
+            webView.post(() -> {
+                webView.evaluateJavascript("window.onAppsUpdated('" + json.replace("'", "\\'") + "')", null);
+            });
+        }).start();
     }
 
     private String getBase64Icon(Drawable drawable) {

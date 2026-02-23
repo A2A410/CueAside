@@ -18,7 +18,8 @@ const CueBridge = window.CueBridge || {
     deleteRoutine: (id) => console.log("Mock Delete", id),
     toggleRoutine: (id, enabled) => console.log("Mock Toggle", id, enabled),
     checkPermissionsStatus: () => '{"usage":false,"accessibility":false,"notifications":false}',
-    log: (m) => console.log(m)
+    log: (m) => console.log(m),
+    openAppInfo: () => console.log("Mock Open App Info")
 };
 
 const V = '1.6.0', MAX_MSG = 100;
@@ -60,16 +61,13 @@ function load() {
     try {
         const routinesJson = CueBridge.getRoutines();
         const settingsJson = CueBridge.getSettings();
-        const appsJson = CueBridge.getApps();
 
         ST.routines = JSON.parse(routinesJson || "[]");
         const settings = JSON.parse(settingsJson || "{}");
         ST.settings = Object.assign(ST.settings, settings);
-        APPS = JSON.parse(appsJson || "[]");
-
-        dlog('Loaded: ' + ST.routines.length + ' routines, ' + APPS.length + ' apps');
+        // APPS will be loaded via onAppsUpdated callback
     } catch (e) {
-        dwarn('Load Error: ' + e);
+        console.warn('Load Error: ' + e);
     }
 }
 
@@ -81,6 +79,7 @@ window.onRoutinesUpdated = function (json) {
 
 window.onAppsUpdated = function (json) {
     APPS = JSON.parse(json);
+    window.appsLoading = false;
     if (curTab === 'create' && CR.step === 0) renderCreate();
 };
 
@@ -89,15 +88,45 @@ window.checkPermissions = function() {
         const status = JSON.parse(CueBridge.checkPermissionsStatus());
         if (!status.usage || !status.accessibility) {
             showPermissionWarning(status);
+        } else if (status.accessibility && status.lastAccEvent === 0 && status.hasActiveRoutines) {
+            showAccessibilityUnusableWarning();
         }
-    } catch(e) { dlog("Error checking permissions: " + e); }
+        if (curTab === 'settings') renderSettings();
+    } catch(e) { console.error("Error checking permissions: " + e); }
 };
+
+function showAccessibilityUnusableWarning() {
+    const html = `
+    <div style="padding:24px 20px; text-align:center">
+        <div style="font-size:48px; margin-bottom:18px">🚩</div>
+        <h3 style="margin-bottom:12px; color:var(--danger)">Service Unresponsive</h3>
+        <p style="font-size:13px; color:var(--txt2); line-height:1.5; margin-bottom:20px">
+            Android shows Accessibility is ON, but it's not sending data. This is a known Android bug.
+            To fix this, you must <b>Force Stop</b> the app and then toggle the service OFF and ON again.
+        </p>
+        <div class="sec">
+            <div class="row" onclick="CueBridge.openAppInfo()">
+                <div class="row-label">1. Go to App Info</div>
+                <span class="badge badge-req">Open</span>
+            </div>
+            <div class="row" style="opacity:0.6; pointer-events:none">
+                <div class="row-label">2. Click "Force Stop"</div>
+            </div>
+            <div class="row" onclick="CueBridge.requestAccessibilitySettings()">
+                <div class="row-label">3. Toggle Service</div>
+                <span class="badge badge-opt">Settings</span>
+            </div>
+        </div>
+        <button class="btn btn-primary" style="margin-top:20px" onclick="closeSheet()">I'll try later</button>
+    </div>`;
+    openSheet('Warning', html);
+}
 
 function showPermissionWarning(status) {
     const html = `
-    <div style="padding:20px; text-align:center">
-        <div style="font-size:40px; margin-bottom:15px">⚠️</div>
-        <h3 style="margin-bottom:10px">Permissions Required</h3>
+    <div style="padding:24px 20px; text-align:center">
+        <div style="font-size:48px; margin-bottom:18px">⚠️</div>
+        <h3 style="margin-bottom:12px">Permissions Required</h3>
         <p style="font-size:13px; color:var(--txt2); line-height:1.5; margin-bottom:20px">
             CueAside needs certain permissions to watch for app changes and fire notifications.
             Without them, the app will not function correctly.
@@ -128,7 +157,6 @@ function setTheme(id) {
     applyTheme(id);
     save();
     renderSettings();
-    dlog('Theme: ' + id);
 }
 
 function applyDesign(id) {
@@ -153,21 +181,7 @@ function switchDesign(id) {
     }, 320);
 }
 
-// ── DEBUG & UI UTILS ──
-function dlog(m) { CueBridge.log(m); _dl('log', m); }
-function dwarn(m) { _dl('warn', m); }
-function derr(m) { _dl('err', m); }
-function _dl(t, m) {
-    const ts = new Date().toTimeString().slice(0, 8);
-    const el = document.getElementById('debug-log');
-    if (!el) return;
-    const d = document.createElement('div'); d.className = 'dlog-' + t;
-    d.textContent = `[${ts}][${t.toUpperCase()}] ${m}`;
-    el.appendChild(d); el.scrollTop = el.scrollHeight;
-}
-function openDebug() { document.getElementById('debug-panel').classList.add('open'); }
-function closeDebug() { document.getElementById('debug-panel').classList.remove('open'); }
-function clearDebug() { document.getElementById('debug-log').innerHTML = ''; }
+// ── UI UTILS ──
 
 let _st;
 function snack(m) {
@@ -219,13 +233,13 @@ function renderAppSel() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
     <input id="app-search" placeholder="Search apps" oninput="filterApps(this.value)" autocomplete="off">
   </div>
-  <div id="app-list">${APPS.length ? APPS.map(a => appRow(a)).join('') : '<div class="empty">No apps found. Try rescan in settings.</div>'}</div>`;
+  <div id="app-list">${APPS.length ? APPS.map(a => appRow(a)).join('') : (window.appsLoading ? '<div class="empty">Loading apps...</div>' : '<div class="empty">No apps found. Try rescan in settings.</div>')}</div>`;
 }
 
 function appRow(a) {
     const sel = CR.selected.some(s => s.pkg === a.pkg);
     return `<div class="app-item${sel ? ' selected' : ''}" onclick="toggleApp('${a.pkg}')" data-pkg="${a.pkg}">
-    <div class="app-icon-box">${a.icon.startsWith('data:') ? `<img src="${a.icon}" style="width:24px;height:24px">` : a.icon}</div>
+    <div class="app-icon-box">${a.icon.startsWith('data:') ? `<img src="${a.icon}" style="width:28px;height:28px">` : a.icon}</div>
     <div class="app-info"><div class="app-name">${a.name}</div><div class="app-pkg">${a.pkg}</div></div>
     <div class="app-check"><svg class="app-chk-svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
   </div>`;
@@ -273,19 +287,19 @@ function renderFnCfg() {
     const apps = CR.selected;
     const appIcons = apps.map(a => `
     <div class="icon-opt${CR.icon?.type === 'app' && CR.icon?.pkg === a.pkg ? ' sel' : ''}" onclick="pickIcon('app','${a.pkg}')">
-      <div class="ico">${a.icon.startsWith('data:') ? `<img src="${a.icon}" style="width:24px;height:24px">` : a.icon}</div><span>${a.name}</span>
+      <div class="ico">${a.icon.startsWith('data:') ? `<img src="${a.icon}" style="width:28px;height:28px">` : a.icon}</div><span>${a.name}</span>
     </div>`).join('');
 
     return `<div class="step-bar"><div class="step-dot done"></div><div class="step-dot done"></div></div>
-  <div style="padding:10px 20px;border-bottom:var(--line)">
-    <button onclick="backToSel()" style="background:none;border:none;color:var(--txt3);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;padding:0;letter-spacing:.02em">← Back</button>
+  <div style="padding:12px 20px;border-bottom:var(--line)">
+    <button onclick="backToSel()" class="btn-ghost" style="width:auto;padding:6px 14px;font-size:11px">← Back to apps</button>
   </div>
   <div style="padding:12px 20px;border-bottom:var(--line);display:flex;flex-wrap:wrap;gap:6px">
-    ${apps.map(a => `<span class="chip on">${a.icon.startsWith('data:') ? `<img src="${a.icon}" style="width:14px;height:14px">` : a.icon} ${a.name}</span>`).join('')}
+    ${apps.map(a => `<span class="chip on">${a.icon.startsWith('data:') ? `<img src="${a.icon}" style="width:16px;height:16px">` : a.icon} ${a.name}</span>`).join('')}
   </div>
   <div style="padding:10px 20px 4px;font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--txt3)">Condition</div>
-  <label class="chk-row"><input type="radio" name="cond" value="launched" ${CR.cond === 'launched' ? 'checked' : ''} onchange="setCond('launched')"><span class="row-label">When Launched</span></label>
-  <label class="chk-row"><input type="radio" name="cond" value="used" ${CR.cond === 'used' ? 'checked' : ''} onchange="setCond('used')"><span class="row-label">Time-based</span></label>
+  <label class="chk-row${CR.cond === 'launched' ? ' sel' : ''}"><input type="radio" name="cond" value="launched" ${CR.cond === 'launched' ? 'checked' : ''} onchange="setCond('launched')"><span class="row-label">When Launched</span></label>
+  <label class="chk-row${CR.cond === 'used' ? ' sel' : ''}"><input type="radio" name="cond" value="used" ${CR.cond === 'used' ? 'checked' : ''} onchange="setCond('used')"><span class="row-label">Time-based</span></label>
   <div id="used-sub" style="display:${CR.cond === 'used' ? 'block' : 'none'}">
     <div style="padding:0 20px 10px;display:flex;gap:6px">
         <div onclick="CR.timeMode='session';renderCreate();showFab('Save')" style="flex:1;padding:10px 8px;border-radius:var(--rad2);border:1px solid ${CR.timeMode === 'session' ? 'var(--acc)' : 'var(--bg4)'};background:${CR.timeMode === 'session' ? 'var(--acc-dim)' : 'var(--bg3)'};cursor:pointer;text-align:center">
@@ -304,11 +318,11 @@ function renderFnCfg() {
       </select>
     </div>
   </div>
-  <label class="chk-row"><input type="radio" name="cond" value="exiting" ${CR.cond === 'exiting' ? 'checked' : ''} onchange="setCond('exiting')"><span class="row-label">When Exiting</span></label>
+  <label class="chk-row${CR.cond === 'exiting' ? ' sel' : ''}"><input type="radio" name="cond" value="exiting" ${CR.cond === 'exiting' ? 'checked' : ''} onchange="setCond('exiting')"><span class="row-label">When Exiting</span></label>
 
   <div style="padding:10px 20px 4px;font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--txt3)">Notification Options</div>
-  <label class="chk-row">
-    <input type="checkbox" ${CR.highPriority ? 'checked' : ''} onchange="CR.highPriority=this.checked">
+  <label class="chk-row${CR.highPriority ? ' sel' : ''}">
+    <input type="checkbox" ${CR.highPriority ? 'checked' : ''} onchange="CR.highPriority=this.checked;renderCreate()">
     <div style="flex:1">
         <div class="row-label">High Priority</div>
         <div style="font-size:11px;color:var(--txt3)">Bypass DND and show at top</div>
@@ -335,7 +349,7 @@ function renderFnCfg() {
     <input class="form-input" id="notif-t" placeholder="Title (optional)" maxlength="50" value="${CR.title}" oninput="CR.title=this.value">
     <textarea class="form-input" id="notif-m" rows="3" placeholder="Message" maxlength="${MAX_MSG}" style="margin-top:10px" oninput="CR.msg=this.value">${CR.msg}</textarea>
   </div>
-  <label class="chk-row"><input type="checkbox" ${CR.bubble ? 'checked' : ''} onchange="CR.bubble=this.checked"><span class="row-label">Bubble notification</span></label>
+  <label class="chk-row${CR.bubble ? ' sel' : ''}"><input type="checkbox" ${CR.bubble ? 'checked' : ''} onchange="CR.bubble=this.checked;renderCreate()"><span class="row-label">Bubble notification</span></label>
   <div style="height:20px"></div>`;
 }
 
@@ -399,9 +413,9 @@ function renderList() {
 
 function rIcon(r) {
     if (r.icon && r.icon.src) {
-        return r.icon.src.startsWith('data:') ? `<img src="${r.icon.src}" style="width:24px;height:24px">` : r.icon.src;
+        return r.icon.src.startsWith('data:') ? `<img src="${r.icon.src}" style="width:28px;height:28px">` : r.icon.src;
     }
-    return r.apps[0].icon.startsWith('data:') ? `<img src="${r.apps[0].icon}" style="width:24px;height:24px">` : r.apps[0].icon;
+    return r.apps[0].icon.startsWith('data:') ? `<img src="${r.apps[0].icon}" style="width:28px;height:28px">` : r.apps[0].icon;
 }
 
 function routineCard(r) {
@@ -443,6 +457,13 @@ function deleteR(id) {
 function renderSettings() {
     const el = document.getElementById('settings-content');
     const cur_d = ST.settings.design || '2';
+    let status = { usage: false, accessibility: false, notifications: false };
+    try {
+        status = JSON.parse(CueBridge.checkPermissionsStatus());
+    } catch (e) { console.error(e); }
+
+    const badge = (ok, okText, reqText) => ok ? `<span class="badge badge-ok">${okText}</span>` : `<span class="badge badge-req">${reqText}</span>`;
+
     el.innerHTML = `
     <div class="sec-title">Appearance</div>
     <div class="sec">
@@ -473,15 +494,15 @@ function renderSettings() {
 
     <div class="sec-title">Permissions & System</div>
     <div class="sec">
-        <div class="row" onclick="CueBridge.requestUsageAccess()"><div class="row-label">Usage Access</div><span class="badge badge-req">Grant</span></div>
-        <div class="row" onclick="CueBridge.requestAccessibilitySettings()"><div class="row-label">Accessibility Service</div><span class="badge badge-req">Enable</span></div>
-        <div class="row" onclick="CueBridge.requestNotificationPermission()"><div class="row-label">Notifications</div><span class="badge badge-opt">Config</span></div>
+        <div class="row" onclick="CueBridge.requestUsageAccess()"><div class="row-label">Usage Access</div>${badge(status.usage, 'Granted', 'Grant')}</div>
+        <div class="row" onclick="CueBridge.requestAccessibilitySettings()"><div class="row-label">Accessibility Service</div>${badge(status.accessibility, 'Enabled', 'Enable')}</div>
+        <div class="row" onclick="CueBridge.requestNotificationPermission()"><div class="row-label">Notifications</div>${badge(status.notifications, 'Granted', 'Config')}</div>
         <div class="row" onclick="CueBridge.requestBatteryIgnore()"><div class="row-label">Unrestrict Battery</div><span class="badge badge-opt">Optimize</span></div>
     </div>
 
     <div class="sec-title">App Data</div>
     <div class="sec">
-        <div class="row" onclick="CueBridge.rescanApps()"><div class="row-label">Rescan Installed Apps</div><span style="font-size:16px">↻</span></div>
+        <div class="row" onclick="window.appsLoading=true;renderCreate();CueBridge.rescanApps()"><div class="row-label">Rescan Installed Apps</div><span style="font-size:16px">↻</span></div>
         <div class="row" onclick="exportData()"><div class="row-label">Export Routines (JSON)</div><span style="font-size:16px">↗</span></div>
         <div class="row" onclick="openAbout()"><div class="row-label">About CueAside</div><span style="font-size:16px">›</span></div>
     </div>
@@ -489,10 +510,6 @@ function renderSettings() {
     <div class="sec-title">Danger Zone</div>
     <div class="sec">
         <div class="row" onclick="clearAllData()"><div class="row-label" style="color:var(--danger)">Clear All Data</div></div>
-    </div>
-
-    <div class="sec">
-        <div class="row" onclick="openDebug()"><div class="row-label">Debug Console</div><span style="font-size:11px; color:var(--txt3)">v${V}</span></div>
     </div>
     <div style="height:30px"></div>`;
 }
@@ -525,7 +542,7 @@ function clearAllData() {
 function openAbout() {
     const html = `
     <div style="padding:28px 20px 20px;border-bottom:var(--line);display:flex;align-items:center;gap:16px">
-      <div style="width:56px;height:56px;border-radius:16px;background:var(--bg3);border:var(--line);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0">◎</div>
+      <div style="width:64px;height:64px;border-radius:16px;background:var(--bg3);border:var(--line);display:flex;align-items:center;justify-content:center;font-size:32px;flex-shrink:0">◎</div>
       <div>
         <div style="font-size:18px;font-weight:600;letter-spacing:-.02em">CueAside</div>
         <div style="font-size:12px;color:var(--txt3);margin-top:3px;font-family:'DM Mono',monospace">v${V}</div>
@@ -544,6 +561,7 @@ function openAbout() {
 
 // ── INIT ──
 (function () {
+    window.appsLoading = true;
     load();
     applyTheme(ST.settings.theme || 'default');
     applyDesign(ST.settings.design || '2');

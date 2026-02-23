@@ -13,7 +13,6 @@
         <div class="topbar">
             <h1 style="display:none"><span style="color:var(--acc)">+</span> Create</h1>
             <span class="topbar-label">New Routine</span>
-            <button class="topbar-btn" onclick="openDebug()" title="Debug">·</button>
         </div>
         <div id="create-content"></div>
     </div>
@@ -68,14 +67,6 @@
     <div class="plaster-txt">Applying design…</div>
 </div>
 
-<div id="debug-panel">
-    <div style="display:flex;align-items:center;padding:12px 16px;border-bottom:var(--line);flex-shrink:0;gap:8px">
-        <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:500;color:var(--txt2);flex:1">debug console</span>
-        <button onclick="clearDebug()" style="background:none;border:var(--line);color:var(--txt3);padding:4px 10px;border-radius:var(--rad3);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif">clear</button>
-        <button onclick="closeDebug()" style="background:var(--bg3);border:var(--line);color:var(--txt2);width:26px;height:26px;border-radius:var(--rad3);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">✕</button>
-    </div>
-    <div id="debug-log"></div>
-</div>
 
 <script src="bridge.js"></script>
 </body>
