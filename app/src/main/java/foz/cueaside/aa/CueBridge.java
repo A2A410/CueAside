@@ -224,7 +224,7 @@ public class CueBridge {
     private void refreshRoutines() {
         webView.post(() -> {
             String json = getRoutines();
-            webView.evaluateJavascript("window.onRoutinesUpdated('" + json.replace("'", "\\'") + "')", null);
+            webView.evaluateJavascript(String.format("window.onRoutinesUpdated(%s)", gson.toJson(json)), null);
         });
     }
 
@@ -232,7 +232,7 @@ public class CueBridge {
         new Thread(() -> {
             String json = getApps();
             webView.post(() -> {
-                webView.evaluateJavascript("window.onAppsUpdated('" + json.replace("'", "\\'") + "')", null);
+                webView.evaluateJavascript(String.format("window.onAppsUpdated(%s)", gson.toJson(json)), null);
             });
         }).start();
     }
