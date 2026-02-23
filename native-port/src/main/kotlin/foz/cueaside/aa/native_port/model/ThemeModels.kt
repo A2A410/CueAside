@@ -1,4 +1,4 @@
-package foz.cueaside.aa.model
+package foz.cueaside.aa.native_port.model
 
 enum class DesignMode(val id: String, val label: String) {
     BOLD("1", "Bold"),

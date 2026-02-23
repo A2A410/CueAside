@@ -1,4 +1,4 @@
-package foz.cueaside.aa.model
+package foz.cueaside.aa.native_port.model
 
 data class AppSettings(
     val defaultBubble: Boolean = false,

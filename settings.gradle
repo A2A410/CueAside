@@ -1,2 +1,3 @@
 rootProject.name = "CueAside"
 include ':app'
+include ':native-port'

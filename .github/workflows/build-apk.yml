@@ -22,7 +22,7 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease
 
-      - name: Sign APK
+      - name: Sign Hybrid APK
         uses: r0adkll/sign-android-release@v1
         id: sign_app
         with:
@@ -32,24 +32,42 @@ jobs:
           keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.KEY_PASSWORD }}
 
-      - name: Prepare Artifact Name
+      - name: Sign Native APK
+        uses: r0adkll/sign-android-release@v1
+        id: sign_native
+        with:
+          releaseDirectory: native-port/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Prepare Artifact Names
         id: prep
         run: |
-          # format: yyyymmdd-HHMM
           TIME=$(date +%Y%m%d-%H%M)
-          FILE_NAME="CueAside-${TIME}.apk"
-          # Find the signed apk
-          APK_PATH="${{ steps.sign_app.outputs.signedReleaseFile }}"
-          if [ -z "$APK_PATH" ]; then
-            echo "Signed APK not found!"
-            exit 1
-          fi
-          cp "$APK_PATH" "$FILE_NAME"
-          echo "file_name=$FILE_NAME" >> $GITHUB_OUTPUT
 
-      - name: Upload APK
+          # Hybrid APK
+          HYBRID_APK="${{ steps.sign_app.outputs.signedReleaseFile }}"
+          HYBRID_NAME="CueAside-Hybrid-${TIME}.apk"
+          cp "$HYBRID_APK" "$HYBRID_NAME"
+
+          # Native APK
+          NATIVE_APK="${{ steps.sign_native.outputs.signedReleaseFile }}"
+          NATIVE_NAME="CueAside-Native-${TIME}.apk"
+          cp "$NATIVE_APK" "$NATIVE_NAME"
+
+          echo "hybrid_name=$HYBRID_NAME" >> $GITHUB_OUTPUT
+          echo "native_name=$NATIVE_NAME" >> $GITHUB_OUTPUT
+
+      - name: Upload Hybrid APK
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.prep.outputs.file_name }}
-          path: ${{ steps.prep.outputs.file_name }}
-          if-no-files-found: error
+          name: ${{ steps.prep.outputs.hybrid_name }}
+          path: ${{ steps.prep.outputs.hybrid_name }}
+
+      - name: Upload Native APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.prep.outputs.native_name }}
+          path: ${{ steps.prep.outputs.native_name }}
