@@ -15,6 +15,11 @@ public class AppTrackerService extends AccessibilityService {
     private RoutineManager routineManager;
     private String lastPackageName = "";
     private android.os.Handler usageHandler = new android.os.Handler();
+    private static long lastEventTime = 0;
+
+    public static long getLastEventTime() {
+        return lastEventTime;
+    }
 
     @Override
     protected void onServiceConnected() {
@@ -25,6 +30,7 @@ public class AppTrackerService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
+        lastEventTime = System.currentTimeMillis();
         try {
             if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
                 String packageName = event.getPackageName() != null ? event.getPackageName().toString() : "";

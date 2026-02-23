@@ -21,16 +21,26 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug
 
+      - name: Sign APK
+        uses: r0adkll/sign-android-release@v1
+        id: sign_app
+        with:
+          releaseDirectory: app/build/outputs/apk/debug
+          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
       - name: Prepare Artifact Name
         id: prep
         run: |
           # format: yyyymmdd-HHMM
           TIME=$(date +%Y%m%d-%H%M)
           FILE_NAME="CueAside-${TIME}.apk"
-          # Find the built apk
-          APK_PATH=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          # Find the signed apk
+          APK_PATH="${{ steps.sign_app.outputs.signedReleaseFile }}"
           if [ -z "$APK_PATH" ]; then
-            echo "APK not found!"
+            echo "Signed APK not found!"
             exit 1
           fi
           cp "$APK_PATH" "$FILE_NAME"

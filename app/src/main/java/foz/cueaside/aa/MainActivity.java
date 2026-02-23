@@ -9,6 +9,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
     private WebView webView;
+    private CueBridge cueBridge;
 
     private static final int PERMISSION_REQUEST_CODE = 123;
 
@@ -27,8 +28,17 @@ public class MainActivity extends AppCompatActivity {
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
 
-        webView.setWebViewClient(new WebViewClient());
-        webView.addJavascriptInterface(new CueBridge(this, webView), "CueBridge");
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                if (cueBridge != null) {
+                    cueBridge.refreshApps();
+                }
+            }
+        });
+        cueBridge = new CueBridge(this, webView);
+        webView.addJavascriptInterface(cueBridge, "CueBridge");
 
         webView.loadUrl("file:///android_asset/index.html");
     }
