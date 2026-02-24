@@ -73,7 +73,7 @@ fun CreateScreen(
                         onSave(routine)
                     }
                 }) {
-                    Icon(if (step == 0) Icons.Default.Check else Icons.Default.Check, contentDescription = "Next")
+                    Icon(Icons.Default.Check, contentDescription = "Next")
                 }
             }
         }
@@ -117,7 +117,13 @@ fun CreateScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Notification Title (Optional)") }, modifier = Modifier.fillMaxWidth())
                     Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(value = msg, onValueChange = { msg = it }, label = { Text("Message") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
+                    OutlinedTextField(
+                        value = msg,
+                        onValueChange = { msg = it },
+                        label = { Text("Message") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3
+                    )
 
                     Spacer(modifier = Modifier.height(80.dp)) // Space for FAB
                 }
