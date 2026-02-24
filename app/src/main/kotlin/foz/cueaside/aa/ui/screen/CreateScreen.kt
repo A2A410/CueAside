@@ -90,14 +90,11 @@ fun CreateScreen(
                 LazyColumn(modifier = Modifier.weight(1f)) {
                     items(filteredApps) { app ->
                         val isSelected = selectedApps.contains(app)
-                        ListItem(
-                            headlineContent = { Text(app.name) },
-                            supportingContent = { Text(app.pkg) },
-                            modifier = Modifier.clickable {
+                        AppItemRow(
+                            app = app,
+                            isSelected = isSelected,
+                            onToggle = {
                                 selectedApps = if (isSelected) selectedApps - app else selectedApps + app
-                            },
-                            trailingContent = {
-                                Checkbox(checked = isSelected, onCheckedChange = null)
                             }
                         )
                     }
@@ -129,5 +126,22 @@ fun CreateScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun AppItemRow(app: AppInfo, isSelected: Boolean, onToggle: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onToggle() }
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(app.name, style = MaterialTheme.typography.bodyLarge)
+            Text(app.pkg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Checkbox(checked = isSelected, onCheckedChange = null)
     }
 }
