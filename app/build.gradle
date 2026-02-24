@@ -3,13 +3,14 @@ plugins {
 }
 
 android {
-    compileSdk 33
-    buildToolsVersion "33.0.0"
+    namespace "foz.cueaside.aa"
+    compileSdk 34
+    buildToolsVersion "34.0.0"
 
     defaultConfig {
         applicationId "foz.cueaside.aa"
         minSdk 21
-        targetSdk 29
+        targetSdk 34
         versionCode 1
         versionName "1.0"
 
