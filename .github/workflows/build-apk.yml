@@ -22,28 +22,16 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease
 
-      - name: Sign APK
-        uses: r0adkll/sign-android-release@v1
-        id: sign_app
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-        env:
-          BUILD_TOOLS_VERSION: "34.0.0"
-
       - name: Prepare Artifact Name
         id: prep
         run: |
           # format: yyyymmdd-HHMM
           TIME=$(date +%Y%m%d-%H%M)
-          FILE_NAME="CueAside-${TIME}.apk"
-          # Find the signed apk
-          APK_PATH="${{ steps.sign_app.outputs.signedReleaseFile }}"
-          if [ -z "$APK_PATH" ]; then
-            echo "Signed APK not found!"
+          FILE_NAME="CueAside-${TIME}-unsigned.apk"
+          # Find the unsigned apk
+          APK_PATH="app/build/outputs/apk/release/app-release-unsigned.apk"
+          if [ ! -f "$APK_PATH" ]; then
+            echo "Unsigned APK not found!"
             exit 1
           fi
           cp "$APK_PATH" "$FILE_NAME"
