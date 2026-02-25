@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService;
 import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 import java.util.Calendar;
@@ -12,29 +13,53 @@ import java.util.Map;
 
 public class AppTrackerService extends AccessibilityService {
     private static final String TAG = "AppTrackerService";
+    private static final String PREF_NAME = "CueAsidePrefs";
+    private static final String KEY_LAST_EVENT = "last_acc_event";
+
     private RoutineManager routineManager;
     private String lastPackageName = "";
     private android.os.Handler usageHandler = new android.os.Handler();
     private static long lastEventTime = 0;
+    private static AppTrackerService instance;
 
     public static long getLastEventTime() {
         return lastEventTime;
+    }
+
+    public static boolean isRunning() {
+        return instance != null;
+    }
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        instance = this;
+        routineManager = new RoutineManager(this);
+        Log.d(TAG, "Service Created");
     }
 
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
         Log.d(TAG, "Service Connected");
-        routineManager = new RoutineManager(this);
+        updateHeartbeat();
     }
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
+        if (event == null) return;
+
         lastEventTime = System.currentTimeMillis();
+        updateHeartbeat();
+
         try {
             if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-                String packageName = event.getPackageName() != null ? event.getPackageName().toString() : "";
-                if (!packageName.equals(lastPackageName)) {
+                CharSequence pkg = event.getPackageName();
+                String packageName = pkg != null ? pkg.toString() : "";
+
+                // Ignore our own app and system UI usually, but for monitoring we need to know transitions
+                if (!packageName.isEmpty() && !packageName.equals(lastPackageName)) {
+                    Log.d(TAG, "App changed: " + lastPackageName + " -> " + packageName);
                     handleAppChange(lastPackageName, packageName);
                     lastPackageName = packageName;
                 }
@@ -44,11 +69,21 @@ public class AppTrackerService extends AccessibilityService {
         }
     }
 
+    private void updateHeartbeat() {
+        try {
+            SharedPreferences prefs = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+            prefs.edit().putLong(KEY_LAST_EVENT, System.currentTimeMillis()).apply();
+        } catch (Exception e) {
+            Log.e(TAG, "Error updating heartbeat: " + e.getMessage());
+        }
+    }
+
     private void handleAppChange(String oldPkg, String newPkg) {
         try {
             usageHandler.removeCallbacksAndMessages(null);
             List<Routine> routines = routineManager.getRoutines();
             if (routines == null) return;
+
             for (Routine r : routines) {
                 if (!r.enabled) continue;
 
@@ -56,6 +91,7 @@ public class AppTrackerService extends AccessibilityService {
                 if ("launched".equals(r.cond)) {
                     for (Routine.AppInfo app : r.apps) {
                         if (app.pkg.equals(newPkg)) {
+                            Log.d(TAG, "Triggering Launch routine for: " + newPkg);
                             NotificationHelper.showNotification(this, r);
                             break;
                         }
@@ -66,6 +102,7 @@ public class AppTrackerService extends AccessibilityService {
                 if ("exiting".equals(r.cond)) {
                     for (Routine.AppInfo app : r.apps) {
                         if (app.pkg.equals(oldPkg)) {
+                            Log.d(TAG, "Triggering Exit routine for: " + oldPkg);
                             NotificationHelper.showNotification(this, r);
                             break;
                         }
@@ -97,6 +134,7 @@ public class AppTrackerService extends AccessibilityService {
             if ("h".equals(r.unit)) delayMillis *= 60;
             if ("s".equals(r.unit)) delayMillis = r.dur * 1000L;
 
+            Log.d(TAG, "Scheduling usage check for " + r.id + " in " + delayMillis + "ms");
             usageHandler.postDelayed(() -> {
                 try {
                     NotificationHelper.showNotification(this, r);
@@ -112,6 +150,8 @@ public class AppTrackerService extends AccessibilityService {
     private void checkTotalUsage(Routine r, String pkg) {
         try {
             UsageStatsManager usm = (UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
+            if (usm == null) return;
+
             Calendar calendar = Calendar.getInstance();
             calendar.set(Calendar.HOUR_OF_DAY, 0);
             calendar.set(Calendar.MINUTE, 0);
@@ -121,7 +161,7 @@ public class AppTrackerService extends AccessibilityService {
             long end = System.currentTimeMillis();
 
             Map<String, UsageStats> stats = usm.queryAndAggregateUsageStats(start, end);
-            if (stats.containsKey(pkg)) {
+            if (stats != null && stats.containsKey(pkg)) {
                 long totalTimeMs = stats.get(pkg).getTotalTimeInForeground();
                 long thresholdMs = r.dur * 60 * 1000L;
                 if ("h".equals(r.unit)) thresholdMs *= 60;
@@ -130,9 +170,8 @@ public class AppTrackerService extends AccessibilityService {
                 if (totalTimeMs >= thresholdMs) {
                     NotificationHelper.showNotification(this, r);
                 } else {
-                    // Schedule a check for when the threshold will be reached
                     long remainingMs = thresholdMs - totalTimeMs;
-                    usageHandler.postDelayed(() -> checkTotalUsage(r, pkg), remainingMs);
+                    usageHandler.postDelayed(() -> checkTotalUsage(r, pkg), Math.max(1000, remainingMs));
                 }
             }
         } catch (Exception e) {
@@ -142,5 +181,12 @@ public class AppTrackerService extends AccessibilityService {
 
     @Override
     public void onInterrupt() {
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        instance = null;
+        Log.d(TAG, "Service Destroyed");
     }
 }

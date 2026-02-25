@@ -106,10 +106,16 @@ public class CueBridge {
     public String checkPermissionsStatus() {
         java.util.Map<String, Object> status = new java.util.HashMap<>();
         status.put("usage", isUsageStatsEnabled());
+
         boolean accEnabled = isAccessibilityEnabled();
         status.put("accessibility", accEnabled);
+        status.put("isServiceRunning", AppTrackerService.isRunning());
+
+        long lastEvent = context.getSharedPreferences("CueAsidePrefs", Context.MODE_PRIVATE)
+                                .getLong("last_acc_event", 0);
+        status.put("lastAccEvent", Math.max(lastEvent, AppTrackerService.getLastEventTime()));
+
         status.put("notifications", isNotificationPermissionGranted());
-        status.put("lastAccEvent", AppTrackerService.getLastEventTime());
         status.put("hasActiveRoutines", routineManager.getRoutines().stream().anyMatch(r -> r.enabled));
         return gson.toJson(status);
     }

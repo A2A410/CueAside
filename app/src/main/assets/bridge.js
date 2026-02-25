@@ -88,20 +88,27 @@ window.checkPermissions = function() {
         const status = JSON.parse(CueBridge.checkPermissionsStatus());
         if (!status.usage || !status.accessibility) {
             showPermissionWarning(status);
-        } else if (status.accessibility && status.lastAccEvent === 0 && status.hasActiveRoutines) {
-            showAccessibilityUnusableWarning();
+        } else if (status.accessibility && status.hasActiveRoutines) {
+            if (!status.isServiceRunning || status.lastAccEvent === 0) {
+                showAccessibilityUnusableWarning(!status.isServiceRunning);
+            }
         }
         if (curTab === 'settings') renderSettings();
     } catch(e) { console.error("Error checking permissions: " + e); }
 };
 
-function showAccessibilityUnusableWarning() {
+function showAccessibilityUnusableWarning(isStopped) {
+    const title = isStopped ? 'Service Not Running' : 'Service Unresponsive';
+    const desc = isStopped
+        ? "Android shows Accessibility is ON, but the service process is not running. This happens when the app is force-stopped or optimized by the system."
+        : "Android shows Accessibility is ON, but it's not sending data. This is a known Android bug.";
+
     const html = `
     <div style="padding:24px 20px; text-align:center">
-        <div style="font-size:48px; margin-bottom:18px">🚩</div>
-        <h3 style="margin-bottom:12px; color:var(--danger)">Service Unresponsive</h3>
+        <div style="font-size:48px; margin-bottom:18px">${isStopped ? '🚫' : '🚩'}</div>
+        <h3 style="margin-bottom:12px; color:var(--danger)">${title}</h3>
         <p style="font-size:13px; color:var(--txt2); line-height:1.5; margin-bottom:20px">
-            Android shows Accessibility is ON, but it's not sending data. This is a known Android bug.
+            ${desc}<br><br>
             To fix this, you must <b>Force Stop</b> the app and then toggle the service OFF and ON again.
         </p>
         <div class="sec">
